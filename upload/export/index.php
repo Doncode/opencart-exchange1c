@@ -1,29 +1,19 @@
 <?php
 // Version
-define('VERSION', '1.6.0');
-
-//header('Content-Type: text/xml; charset=utf-8');
+define('VERSION', '1.0.7');
 
 // Configuration
 require_once('../admin/config.php');
+require_once(DIR_CONFIG . 'config_tuning.php');
 
-if (file_exists('../vqmod/vqmod.php')) {
-	require_once('../vqmod/vqmod.php');
-	VQMod::bootup();
+// Startup
+require_once(DIR_SYSTEM . 'startup.php');
 
-	require_once(VQMod::modCheck(DIR_SYSTEM . 'startup.php'));
-	require_once(VQMod::modCheck(DIR_SYSTEM . 'library/currency.php'));
-	require_once(VQMod::modCheck(DIR_SYSTEM . 'library/user.php'));
-	require_once(VQMod::modCheck(DIR_SYSTEM . 'library/weight.php'));
-	require_once(VQMod::modCheck(DIR_SYSTEM . 'library/length.php'));
-}
-else {
-	require_once(DIR_SYSTEM . 'startup.php');
-	require_once(DIR_SYSTEM . 'library/currency.php');
-	require_once(DIR_SYSTEM . 'library/user.php');
-	require_once(DIR_SYSTEM . 'library/weight.php');
-	require_once(DIR_SYSTEM . 'library/length.php');
-}
+// Application Classes
+require_once(DIR_SYSTEM . 'library/currency.php');
+require_once(DIR_SYSTEM . 'library/user.php');
+require_once(DIR_SYSTEM . 'library/weight.php');
+require_once(DIR_SYSTEM . 'library/length.php');
 
 // Registry
 $registry = new Registry();
@@ -44,11 +34,7 @@ $registry->set('db', $db);
 $query = $db->query("SELECT * FROM " . DB_PREFIX . "setting");
  
 foreach ($query->rows as $setting) {
-	if (!$setting['serialized']) {
-		$config->set($setting['key'], $setting['value']);
-	} else {
-		$config->set($setting['key'], unserialize($setting['value']));
-	}
+	$config->set($setting['key'], $setting['value']);
 }
 
 // Log 
@@ -59,7 +45,6 @@ $registry->set('log', $log);
 function error_handler($errno, $errstr, $errfile, $errline) {
 	global $config, $log;
 
-	if (0 === error_reporting()) return TRUE;
 	switch ($errno) {
 		case E_NOTICE:
 		case E_USER_NOTICE:
@@ -117,12 +102,12 @@ $query = $db->query("SELECT * FROM " . DB_PREFIX . "language");
 
 foreach ($query->rows as $result) {
 	$languages[$result['code']] = array(
-		'language_id'	=> $result['language_id'],
-		'name'		=> $result['name'],
-		'code'		=> $result['code'],
-		'locale'	=> $result['locale'],
-		'directory'	=> $result['directory'],
-		'filename'	=> $result['filename']
+		'language_id' => $result['language_id'],
+		'name'        => $result['name'],
+		'code'        => $result['code'],
+		'locale'      => $result['locale'],
+		'directory'   => $result['directory'],
+		'filename'    => $result['filename']
 	);
 }
 
@@ -147,53 +132,30 @@ $registry->set('user', new User($registry));
 // Front Controller
 $controller = new Front($registry);
 
-
 // Router
-if (isset($request->get['mode']) && $request->get['type'] == 'catalog') {
+if (isset($request->get['mode'])) {
 
-	switch ($request->get['mode']) {
-		case 'checkauth':
-			$action = new Action('module/exchange1c/modeCheckauth');
-		break;
+	if( $request->get['mode'] == 'checkauth') {
+	
+		$action = new Action('dataexchange/exchange1c/modeCheckauth');
 		
-		case 'init':
-			$action = new Action('module/exchange1c/modeCatalogInit');
-		break;
-
-		case 'file':
-			$action = new Action('module/exchange1c/modeFile');
-		break;
-
-		case 'import':
-			$action = new Action('module/exchange1c/modeImport');
-		break;
-
-		default:
-			echo "success\n";
+	} elseif( $request->get['mode'] == 'init') {
+	
+		$action = new Action('dataexchange/exchange1c/modeInit');
+		
+	} elseif( $request->get['mode'] == 'file') {
+	
+		$action = new Action('dataexchange/exchange1c/modeFile');
+		
+	} elseif( $request->get['mode'] == 'import') {
+	
+		$action = new Action('dataexchange/exchange1c/modeImport');
+		
+	} else {
+		echo "success\n";
+		exit;
 	}
 	
-} else if (isset($request->get['mode']) && $request->get['type'] == 'sale') {
-	
-	switch ($request->get['mode']) {
-		case 'checkauth':
-			$action = new Action('module/exchange1c/modeCheckauth');
-		break;
-		
-		case 'init':
-			$action = new Action('module/exchange1c/modeSaleInit');
-		break;
-
-		case 'query':
-			$action = new Action('module/exchange1c/modeQueryOrders');
-		break;
-
-		case 'success':
-			$action = new Action('module/exchange1c/modeOrdersChangeStatus');
-		break;
-
-		default:
-			echo "success\n";
-	}
 
 } else {
 	echo "success\n";
@@ -201,9 +163,7 @@ if (isset($request->get['mode']) && $request->get['type'] == 'catalog') {
 }
 
 // Dispatch
-if (isset($action)) {
-	$controller->dispatch($action, new Action('error/not_found'));
-}
+$controller->dispatch($action, new Action('error/not_found'));
 
 // Output
 $response->output();

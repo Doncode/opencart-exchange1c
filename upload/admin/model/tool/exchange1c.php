@@ -177,6 +177,11 @@ class ModelToolExchange1c extends Model {
 	 * @param    string    наименование типа цены
 	 */
 	public function parseOffers($filename, $config_price_type, $language_id) {
+		$config_price_map = array(
+			'Розничная' => 'price',
+			'Мелко оптовая' => 'price_small_wholesale',
+			'Оптовая' => 'price_box',
+		);
 
 		$importFile = DIR_CACHE . 'exchange1c/' . $filename;
 		$xml = simplexml_load_file($importFile);
@@ -196,7 +201,7 @@ class ModelToolExchange1c extends Model {
 
 		if ($xml->ПакетПредложений->ТипыЦен->ТипЦены) {
 			foreach ($xml->ПакетПредложений->ТипыЦен->ТипЦены as $key => $type) {
-				$price_types[(string)$type->Ид] = (string)$type->Наименование;
+				$price_types[(string)$type->Ид] = trim((string)$type->Наименование);
 				if($key == 0 && !isset($config_price_type_main)) {
 					$config_price_type_main['keyword'] = (string)$type->Наименование;
 				}
@@ -239,24 +244,37 @@ class ModelToolExchange1c extends Model {
 	
 					//Цена за единицу
 					if ($offer->Цены) {
-	
-						// Первая цена по умолчанию - $config_price_type_main
-						if (!$config_price_type_main['keyword']) {
+
+						if ($config_price_map) {
+							$prices = array();
+							foreach ($offer->Цены->Цена as $price) {
+								$price = (array)$price;
+								$price['price_name'] = $price_types[$price['ИдТипаЦены']];
+								if (isset($config_price_map[$price['price_name']])) {
+									$price['price_field'] = $config_price_map[$price['price_name']];
+									$data[$price['price_field']] = $price['ЦенаЗаЕдиницу'];
+								}
+								$prices[] = $price;
+							}
+
+							// Первая цена по умолчанию - $config_price_type_main
+						} else if (!$config_price_type_main['keyword']) {
 							$data['price'] = (float)$offer->Цены->Цена->ЦенаЗаЕдиницу;
-						}
-						else {
+						} else {
 							if ($offer->Цены->Цена->ИдТипаЦены) {
 								foreach ($offer->Цены->Цена as $price) {
 									if ($price_types[(string)$price->ИдТипаЦены] == $config_price_type_main['keyword']) {
 										$data['price'] = (float)$price->ЦенаЗаЕдиницу;
 										if ($enable_log)
 											$this->log->write(" найдена цена  > " . $data['price']);
-	
+
 									}
 								}
 							}
 						}
-	
+
+
+
 						// Вторая цена и тд - $discount_price_type
 						if (!empty($discount_price_type) && $offer->Цены->Цена->ИдТипаЦены) {
 							foreach ($offer->Цены->Цена as $price) {
@@ -279,6 +297,7 @@ class ModelToolExchange1c extends Model {
 	
 					//Количество
 					$data['quantity'] = isset($offer->Количество) ? (int)$offer->Количество : 0;
+					$data['stock_status_id'] = $data['quantity'] > 0 ?  7 : 5;
 				}
 
 				//Характеристики
@@ -388,7 +407,7 @@ class ModelToolExchange1c extends Model {
 				
 				if (!$exchange1c_relatedoptions || $offer_cnt == count($xml->ПакетПредложений->Предложения->Предложение)
 					|| $data['1c_id'] != substr($xml->ПакетПредложений->Предложения->Предложение[$offer_cnt]->Ид, 0, strlen($data['1c_id'])) ) {
-						
+
 						$this->updateProduct($data, $product_id, $language_id);
 						unset($data);
 				}
@@ -629,7 +648,7 @@ class ModelToolExchange1c extends Model {
 
 		$result = array(
 			 'status'         => isset($data['status']) ? $data['status'] : 1
-			,'top'            => isset($data['top']) ? $data['top'] : 1
+			,'top'            => isset($data['top']) ? $data['top'] : 0
 			,'parent_id'      => $parent
 			,'category_store' => isset($data['category_store']) ? $data['category_store'] : array(0)
 			,'keyword'        => isset($data['keyword']) ? $data['keyword'] : ''
@@ -849,11 +868,13 @@ class ModelToolExchange1c extends Model {
 
 			,'location'     => (isset($product['location'])) ? $product['location'] : (isset($data['location']) ? $data['location']: '')
 			,'price'        => (isset($product['price'])) ? $product['price'] : (isset($data['price']) ? $data['price']: 0)
+			,'price_small_wholesale' => (isset($product['price_small_wholesale'])) ? $product['price_small_wholesale'] : (isset($data['price_small_wholesale']) ? $data['price_small_wholesale']: 0)
+			,'price_box'    => (isset($product['price_box'])) ? $product['price_box'] : (isset($data['price_box']) ? $data['price_box']: 0)
 			,'tax_class_id' => (isset($product['tax_class_id'])) ? $product['tax_class_id'] : (isset($data['tax_class_id']) ? $data['tax_class_id']: 0)
 			,'quantity'     => (isset($product['quantity'])) ? $product['quantity'] : (isset($data['quantity']) ? $data['quantity']: 0)
 			,'minimum'      => (isset($product['minimum'])) ? $product['minimum'] : (isset($data['minimum']) ? $data['minimum']: 1)
 			,'subtract'     => (isset($product['subtract'])) ? $product['subtract'] : (isset($data['subtract']) ? $data['subtract']: 1)
-			,'stock_status_id'  => $this->config->get('config_stock_status_id')
+			,'stock_status_id'  => (isset($product['stock_status_id'])) ? $product['stock_status_id'] : (isset($data['stock_status_id']) ? $data['stock_status_id']: $this->config->get('config_stock_status_id'))
 			,'shipping'         => (isset($product['shipping'])) ? $product['shipping'] : (isset($data['shipping']) ? $data['shipping']: 1)
 			,'keyword'          => (isset($product['keyword'])) ? $product['keyword'] : (isset($data['keyword']) ? $data['keyword']: '')
 			,'image'            => (isset($product['image'])) ? $product['image'] : (isset($data['image']) ? $data['image']: '')
@@ -1347,6 +1368,10 @@ class ModelToolExchange1c extends Model {
 			if ($enable_log)
 				$this->log->write('TRUNCATE TABLE ' . DB_PREFIX . 'category_path');
 			$this->db->query('TRUNCATE TABLE ' . DB_PREFIX . 'category_path');
+//            CREATE TABLE `category_path` (
+//                    `id` int(11) NOT NULL AUTO_INCREMENT,
+//            PRIMARY KEY (`id`)
+//            ) ENGINE=MyISAM AUTO_INCREMENT=1 DEFAULT CHARSET=utf8;
 			if ($enable_log)
 				$this->log->write('TRUNCATE TABLE ' . DB_PREFIX . 'category_to_layout');
 			$this->db->query('TRUNCATE TABLE ' . DB_PREFIX . 'category_to_1c');

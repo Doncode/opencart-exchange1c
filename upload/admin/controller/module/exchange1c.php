@@ -354,16 +354,15 @@ class ControllerModuleExchange1c extends Controller {
 				exit;
 			}
 		}
-		
 		// Авторизуем
 		if (($this->config->get('exchange1c_username') != '') && (@$_SERVER['PHP_AUTH_USER'] != $this->config->get('exchange1c_username'))) {
 			echo "failure\n";
-			echo "error login";
+			echo "error login={$_SERVER['PHP_AUTH_USER']}\n";
 		}
 		
 		if (($this->config->get('exchange1c_password') != '') && (@$_SERVER['PHP_AUTH_PW'] != $this->config->get('exchange1c_password'))) {
 			echo "failure\n";
-			echo "error password";
+			echo "error password={$_SERVER['PHP_AUTH_PW']}\n";
 			exit;
 		}
 
@@ -557,10 +556,9 @@ class ControllerModuleExchange1c extends Controller {
 		$language_id = $this->model_tool_exchange1c->getLanguageId($this->config->get('config_language'));
 
 		if (strpos($filename, 'import') !== false) {
-			
-			$this->model_tool_exchange1c->parseImport($filename, $language_id);
+            $this->model_tool_exchange1c->parseImport($filename, $language_id);
 
-			if ($this->config->get('exchange1c_fill_parent_cats')) {
+            if ($this->config->get('exchange1c_fill_parent_cats')) {
 				$this->model_tool_exchange1c->fillParentsCategories();
 			}
             // Только если выбран способ deadcow_seo
